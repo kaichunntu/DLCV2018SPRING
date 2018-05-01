@@ -105,3 +105,6 @@ ENV/
 data/
 PPT/
 image/
+model_para/
+tmp/
+*.ipynb
