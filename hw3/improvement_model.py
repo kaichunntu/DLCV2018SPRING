@@ -115,8 +115,8 @@ def run_model(data,model_name,history=None):
     model.save("model_para/{}_structure.h5".format(model_name))
     return model , history
 
-# model = run_model(data=[ train_data , train_label , valid_data , valid_label ],"VGG16FCN32s",history={})
-
+# model = run_model(data=[ train_data , train_label , valid_data , valid_label ],"Inception-v3-FCN16s",history={})
+# model.load_weights( "Inception-v3-FCN16s.h5" )
 
 model_path = "improvement.h5"
 model = load_model(model_path)

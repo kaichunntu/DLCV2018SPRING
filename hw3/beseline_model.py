@@ -38,9 +38,9 @@ print("Valid data shape : {}".format(valid_data.shape))
 
 print("Preprocessing")
 def preprocess_input(x):
-    x /= 255.
-    x -= 0.5
-    x *= 2.
+    x[:,:,:,0] -= 103.939
+    x[:,:,:,1] -= 116.779
+    x[:,:,:,2] -= 123.68
     return x
 
 # train_data = preprocess_input(train_data.astype("float"))
@@ -69,7 +69,7 @@ import tensorflow as tf
 
 
 def run_model(data,model_name,history=None):
-#     %env CUDA_VISIBLE_DEVICES=1
+#     %env CUDA_VISIBLE_DEVICES=0
     my_vgg = VGG16(weights=None)
 
     layer = my_vgg.layers[1:-4]
@@ -112,7 +112,7 @@ def run_model(data,model_name,history=None):
     model.summary()
     model.load_weights("./vgg16_weights_tf_dim_ordering_tf_kernels.h5" , by_name=True)
 
-    decay_policy = tf.train.exponential_decay(1e-4 , decay_rate=0.8 , decay_steps=8000 , global_step=2000 )
+    decay_policy = tf.train.exponential_decay(1e-4 , decay_rate=0.9 , decay_steps=10000 , global_step=2000 )
     opt = optimizers.Adam(decay_policy)
     early = EarlyStopping('val_loss' , patience=6 , mode="min")
     model_check = ModelCheckpoint("{}.h5".format(model_name) 
@@ -131,7 +131,7 @@ def run_model(data,model_name,history=None):
     return model
 
 # model = run_model(data=[ train_data , train_label , valid_data , valid_label ],"VGG16FCN32s",history={})
-
+# model.load_weights( "VGG16FCN32s.h5" )
 
 model_path = "baseline.h5"
 model = load_model(model_path)
