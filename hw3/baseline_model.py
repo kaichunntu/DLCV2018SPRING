@@ -32,7 +32,7 @@ valid_name = np.unique(valid_name)
 # train_data , train_mask = load_img( train_path , train_name)
 valid_data , valid_mask = load_img( valid_path , valid_name)
 print("Finish load data")
-print("Train data shape : {}".format(train_data.shape))
+# print("Train data shape : {}".format(train_data.shape))
 print("Valid data shape : {}".format(valid_data.shape))
 
 
@@ -50,7 +50,7 @@ valid_data = preprocess_input(valid_data.astype("float"))
 
 
 print( "Build Model." )
-from keras.models import load_model , Model , load_model
+from keras.models import load_model , Model
 from keras.applications.vgg16 import VGG16
 from keras.applications.inception_v3 import InceptionV3 ## "model_para/Inception_v3_imagenet.h5"
 from keras.utils import to_categorical , plot_model
@@ -134,11 +134,11 @@ def run_model(data,model_name,history=None):
 # model.load_weights( "VGG16FCN32s.h5" )
 
 model_path = "baseline.h5"
-model = load_model(model_path)
+model = load_model(model_path , custom_objects={"my_loss":my_loss , "my_acc":my_acc})
 
 z = np.argmax(model.predict( valid_data,batch_size=8) ,axis=-1).reshape(257,-1)
 
-pred_valid_img = np.apply_along_axis( from_label_to_RGB , arr=pred_valid_value , axis=1 )
+pred_valid_img = np.apply_along_axis( from_label_to_RGB , arr=z , axis=1 )
 
 orig = read_masks(valid_mask)
 pred_m = read_masks( pred_valid_img )
