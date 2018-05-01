@@ -135,6 +135,10 @@ mean_iou_score(pred_m , orig)
 # save_path = os.path.join( data_root , "valid_pred" )
 if not os.path.exists(save_path):
     os.mkdir(save_path)
+
+import warnings
+warnings.simplefilter("ignore")
+
 for name,img in zip(valid_name , pred_valid_img):
     img_io.imsave( os.path.join( save_path , name+"_mask.png" )  , img.astype("uint8"), quality=100  )
 
