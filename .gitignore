@@ -108,4 +108,3 @@ image/
 model_para/
 tmp/
 tb_logs/
-*.ipynb
