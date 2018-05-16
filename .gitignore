@@ -108,3 +108,7 @@ image/
 model_para/
 tmp/
 tb_logs/
+
+dev_hw5/
+
+*ipynb
