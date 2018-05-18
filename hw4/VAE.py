@@ -224,7 +224,7 @@ test_reconstruct = sess.run(Infer_img , feed_dict={img:test_data[idx]})
 
 test_reconstruct = np.concatenate([test_img[idx] , inverse_processing(test_reconstruct)] , axis=0)
 
-plt.figure(figsize=(25,5))
+plt.figure(figsize=(15,4))
 plt.imshow(concat_img(test_reconstruct).astype("int"))
 plt.axis("off")
 plt.savefig("{}/fig1_3.png".format(sys.argv[2]))
@@ -235,7 +235,7 @@ random_reconstruct = sess.run( Infer_by_random , feed_dict={random_z:batch_z} )
 random_reconstruct = inverse_processing(random_reconstruct)
 random_reconstruct = concat_img(random_reconstruct , col=8)
 
-plt.figure(figsize=[20,12])
+plt.figure(figsize=[15,10])
 plt.imshow(random_reconstruct.astype("int"))
 plt.axis("off")
 plt.savefig("{}/fig1_4.png".format(sys.argv[2]))

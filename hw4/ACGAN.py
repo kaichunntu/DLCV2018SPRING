@@ -19,9 +19,9 @@ from tensorflow.contrib import layers as ly
 
 gpu_opt = tf.ConfigProto(gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.95 , allow_growth=True) 
                              ,device_count={'GPU': 1})
-logdir="GAN-ver2"
+logdir="ACGAN-ver2"
 
-l_file_name = (( "real-desc_loss.csv" , "fake-desc_loss.csv" ) , ( "real-desc_acc.csv" , "fake-desc_acc.csv" ) )
+l_file_name = (( "real-desc_loss.csv" , "fake-desc_loss.csv" ) , ( "real-clf_loss.csv" ,"fake-clf_loss.csv" ))
 color = [ "firebrick" ,"royalblue"  ]
 
 fig = plt.figure(figsize=[12,4])
@@ -36,14 +36,16 @@ for i , f_group in enumerate(l_file_name):
     plt.xticks(rotation=45)
     ax.grid()
     ax.legend()
-plt.savefig("{}/fig2_2.png".format(sys.argv[1]))
+plt.savefig("{}/fig3_2.png".format(sys.argv[1]))
 # plt.show()
+
+
 
 
 processing_input = lambda x : (x/255-0.5)*2
 inverse_processing = lambda x : (x/2+0.5)*255
 
-def concat_img(g , col=8):
+def concat_img(g , col=10):
     concat_all_img = []
     img_count = g.shape[0]
     row_padding = np.zeros(shape=[1 , g.shape[2]*col+col-1,3])
@@ -61,7 +63,11 @@ def concat_img(g , col=8):
 
 print("Build model.")
 print()
-
+def Mix_attr( attr_inputs , z_inputs ):
+    """
+    Mixed z_inputs with attr vector
+    """
+    return tf.concat([z_inputs , attr_inputs] , axis=-1)
 
 def Generate( z ):
     """
@@ -79,7 +85,7 @@ def Generate( z ):
     bias_regular = ly.l2_regularizer(0.2)
     print("Build generator")
     ## z is 512
-    x = tf.reshape(z , [-1,1,1,latent_dim])
+    x = tf.reshape(z , [-1,1,1,int(z.shape[-1])])
     x = ly.conv2d( x , 4096 , [1,1] , stride=[1,1] , activation_fn=tf.nn.selu , biases_regularizer=bias_regular , scope="g_conv_0")
     x = tf.reshape( x , [ -1,2,2,4096//4 ] )
     x = ly.conv2d_transpose( x , 512 , [4,4] , stride=[2,2] , activation_fn=tf.nn.selu 
@@ -105,7 +111,7 @@ def Generate( z ):
     
 #     x = tf.concat([x , x_1] , axis=-1)
     x = tf.add(x , x_1 )
-    x = ly.conv2d_transpose( x , 96 , [5,5] , stride=[2,2] , activation_fn=tf.nn.selu
+    x = ly.conv2d_transpose( x , 64 , [5,5] , stride=[2,2] , activation_fn=tf.nn.selu
                             , biases_regularizer=bias_regular
                             , padding="SAME" , scope="g_3")
 #     x = tf.add(x , x_1 )
@@ -117,39 +123,65 @@ def Generate( z ):
     
     return x
 
-GAN_graph = tf.Graph()
 
-with GAN_graph.as_default():
+
+ACGAN_graph = tf.Graph()
+
+
+print(logdir+"\n")
+with ACGAN_graph.as_default():
     latent_dim=256
+    num_class=1
+    with tf.name_scope("Input"):
+        z_input = tf.placeholder( shape=[None,latent_dim] , dtype=tf.float32 , name="latent_space")
+        clf_tag = tf.placeholder( shape=[None,num_class] , dtype=tf.float32 , name="class" )
     
-    z_input = tf.placeholder( shape=[None,latent_dim] , dtype=tf.float32 , name="latent_space")
+    with tf.name_scope("Mix_z"):
+        z = Mix_attr(clf_tag , z_input)
     
     with tf.name_scope("Generator"):
-        g_img = Generate(z_input)
+        g_img = Generate(z)
+    
+    tvars = tf.trainable_variables()
+
+    for v in tvars:
+        if "d_" in v.name:
+            pass
+        elif "g_" in v.name:
+            tf.add_to_collection( "gene" , v )
+    saver = tf.train.Saver(var_list=tf.get_collection("gene") , max_to_keep=10)
     
     
-    saver = tf.train.Saver(var_list=tf.trainable_variables())
-
-
-sess = tf.Session( graph=GAN_graph )
+    
+sess = tf.Session( graph=ACGAN_graph )
 
 model_path = "model_para/{}".format(logdir)
-saver.restore( sess , os.path.join(model_path , "generator_"+str(95000)+".ckpt") )
+saver.restore( sess , os.path.join(model_path , "generator_"+str(100000)+".ckpt") )
 
 pr_img_path = "tmp/{}".format(logdir)
 test_z = np.load(os.path.join(pr_img_path , "z_vector.npy"))
+test_zero = np.zeros([test_z.shape[0] , 1])
+test_one = np.ones( [test_z.shape[0] , 1] )
 
 def print_generate_img():
-    g = inverse_processing(sess.run( g_img , feed_dict={z_input:test_z} ))
-    fig = plt.figure(figsize=(12,8))
+    g = inverse_processing(sess.run( g_img 
+                                    , feed_dict={
+                                        z_input:np.concatenate([test_z,test_z] , axis=0)
+                                        ,clf_tag:np.concatenate([test_zero,test_one] , axis=0)
+                                    } ))
+    fig = plt.figure(figsize=(12,4))
     
     g = concat_img(g).astype("int")
     plt.imshow(g)
     plt.axis("off")
-    path = os.path.join( sys.argv[1], "fig2_3.png" )
+    path = os.path.join( sys.argv[1], "fig3_3.png" )
     plt.savefig(path)
 #     plt.show()
     
     
-print_generate_img()
+print_generate_img()   
     
+    
+    
+    
+

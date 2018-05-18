@@ -1,9 +1,9 @@
 
 import os
 import sys
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-import time
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+import time
 
 import matplotlib
 # Force matplotlib to not use any Xwindows backend.
@@ -19,31 +19,16 @@ from tensorflow.contrib import layers as ly
 
 gpu_opt = tf.ConfigProto(gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.95 , allow_growth=True) 
                              ,device_count={'GPU': 1})
-logdir="GAN-ver2"
 
-l_file_name = (( "real-desc_loss.csv" , "fake-desc_loss.csv" ) , ( "real-desc_acc.csv" , "fake-desc_acc.csv" ) )
-color = [ "firebrick" ,"royalblue"  ]
 
-fig = plt.figure(figsize=[12,4])
-for i , f_group in enumerate(l_file_name):
-    ax = fig.add_subplot(1,2,i+1)
-    ax.set_title(f_group[0][5:-4])
-    
-    for j , f in enumerate(f_group):
-        d = np.genfromtxt(os.path.join( "tmp/{}".format(logdir) ,  f),skip_header=1 , delimiter=",")
-        l = d[:,2]
-        ax.plot( range(0,200000 , 200) , l , c=color[j] , label=f[0:4])
-    plt.xticks(rotation=45)
-    ax.grid()
-    ax.legend()
-plt.savefig("{}/fig2_2.png".format(sys.argv[1]))
-# plt.show()
+logdir="InfoGAN-ver0"
+print("file name : "+logdir+"\n")
 
 
 processing_input = lambda x : (x/255-0.5)*2
 inverse_processing = lambda x : (x/2+0.5)*255
 
-def concat_img(g , col=8):
+def concat_img(g , col=10):
     concat_all_img = []
     img_count = g.shape[0]
     row_padding = np.zeros(shape=[1 , g.shape[2]*col+col-1,3])
@@ -58,9 +43,22 @@ def concat_img(g , col=8):
         concat_all_img.append(row_padding)
     return np.concatenate( concat_all_img , axis=0 )
 
+def Mix_attr( attr_inputs , z_inputs ):
+    """
+    Mixed z_inputs with attr vector
+    """
+#     with tf.variable_scope("g_embedding" , reuse=True):
+#         emb = tf.get_variable("attr")
+#         transform_weight = tf.get_variable("transform_w")
+#     zero_vec = tf.zeros_like(emb[0:1,:])
+#     emb = tf.concat([zero_vec,emb] , axis=0)
+    
+#     z = attr_inputs@emb
+    
+#     z = tf.nn.selu(attr_vector)
+    
+    return tf.concat([z_inputs , attr_inputs] , axis=-1)
 
-print("Build model.")
-print()
 
 
 def Generate( z ):
@@ -79,17 +77,15 @@ def Generate( z ):
     bias_regular = ly.l2_regularizer(0.2)
     print("Build generator")
     ## z is 512
-    x = tf.reshape(z , [-1,1,1,latent_dim])
-    x = ly.conv2d( x , 4096 , [1,1] , stride=[1,1] , activation_fn=tf.nn.selu , biases_regularizer=bias_regular , scope="g_conv_0")
-    x = tf.reshape( x , [ -1,2,2,4096//4 ] )
+    x = tf.reshape(z , [-1,1,1,int(z.shape[1])])
+    x = ly.conv2d( x , 2048 , [1,1] , stride=[1,1] , activation_fn=tf.nn.selu 
+                  , biases_regularizer=bias_regular 
+                  , scope="g_conv_0")
+    x = tf.reshape( x , [ -1,2,2,2048//4 ] )
     x = ly.conv2d_transpose( x , 512 , [4,4] , stride=[2,2] , activation_fn=tf.nn.selu 
                             , biases_regularizer=bias_regular
                             , padding="SAME" , scope="g_0")
     print(x.shape)
-    x_1 = ly.conv2d_transpose( x , 128 , [16,16] , stride=[8,8] , activation_fn=tf.nn.selu
-                            , biases_regularizer=bias_regular
-                            , padding="SAME" , scope="g_1_1")
-    x_1 = ly.batch_norm( x_1 , scope="g_bn_1_1")
     ## 4x4x128
     x = ly.batch_norm( x , scope="g_bn_1")
     x = ly.conv2d_transpose( x , 256 , [4,4] , stride=[2,2] , activation_fn=tf.nn.selu
@@ -98,58 +94,92 @@ def Generate( z ):
     
 #     print(x.shape)
     ## 4x4  why should kernel size be 6x6 not 5x5 ? 
-    x = ly.conv2d_transpose( x , 128 , [9,9] , stride=[4,4] , activation_fn=tf.nn.selu
+    x = ly.conv2d_transpose( x , 128 , [5,5] , stride=[2,2] , activation_fn=tf.nn.selu
                             , biases_regularizer=bias_regular
                             , padding="SAME" , scope="g_2")
     x = ly.batch_norm( x , scope="g_bn_2")
     
-#     x = tf.concat([x , x_1] , axis=-1)
-    x = tf.add(x , x_1 )
     x = ly.conv2d_transpose( x , 96 , [5,5] , stride=[2,2] , activation_fn=tf.nn.selu
                             , biases_regularizer=bias_regular
                             , padding="SAME" , scope="g_3")
 #     x = tf.add(x , x_1 )
     print(x.shape)
-    x = ly.conv2d( x , 3 , [1,1] , stride=[1,1] , activation_fn=tf.nn.tanh
+    x = ly.conv2d_transpose( x , 64 , [3,3] , stride=[2,2] , activation_fn=tf.nn.selu
                             , biases_regularizer=bias_regular
                             , padding="SAME" , scope="g_4")
-    
+    x = ly.conv2d( x , 3 , [1,1] , stride=[1,1] , activation_fn=tf.nn.tanh
+                            , biases_regularizer=bias_regular
+                            , padding="SAME" , scope="g_5")
+    print(x.shape)
     
     return x
 
-GAN_graph = tf.Graph()
 
-with GAN_graph.as_default():
-    latent_dim=256
+InfoGAN_graph = tf.Graph()
+
+
+print(logdir+"\n")
+with InfoGAN_graph.as_default():
+    latent_dim=128
+    num_class=7
+    with tf.name_scope("Input"):
+        z_input = tf.placeholder( shape=[None,latent_dim] , dtype=tf.float32 , name="latent_space")
+        clf_tag = tf.placeholder( shape=[None,num_class] , dtype=tf.float32 , name="class" )
     
-    z_input = tf.placeholder( shape=[None,latent_dim] , dtype=tf.float32 , name="latent_space")
+    with tf.name_scope("Mix_z"):
+        z = Mix_attr(clf_tag , z_input)
     
     with tf.name_scope("Generator"):
-        g_img = Generate(z_input)
-    
-    
+        g_img = Generate(z)
     saver = tf.train.Saver(var_list=tf.trainable_variables())
 
 
-sess = tf.Session( graph=GAN_graph )
+
+sess = tf.Session( graph=InfoGAN_graph )
 
 model_path = "model_para/{}".format(logdir)
-saver.restore( sess , os.path.join(model_path , "generator_"+str(95000)+".ckpt") )
+saver.restore( sess , os.path.join(model_path , "generator_"+str(70000)+".ckpt") )
 
-pr_img_path = "tmp/{}".format(logdir)
-test_z = np.load(os.path.join(pr_img_path , "z_vector.npy"))
+
+test_z = np.load("tmp/{}/z_vector.npy".format(logdir))
+test_attr = []
+
+for i in range(num_class):
+    tmp_a = np.zeros(shape=[5,num_class])
+    tmp_a[:,i] += 1
+    test_attr.append(tmp_a)
+    del tmp_a
 
 def print_generate_img():
-    g = inverse_processing(sess.run( g_img , feed_dict={z_input:test_z} ))
-    fig = plt.figure(figsize=(12,8))
+    g = sess.run( g_img , feed_dict={z_input:test_z , clf_tag:test_attr[0]} )
+    for i in range(1,num_class):
+        tmp_g = sess.run( g_img , feed_dict={z_input:test_z , clf_tag:test_attr[i]} )
+        g = np.concatenate( [g , tmp_g] , axis=0 )
+    g = inverse_processing(g)
+    g = concat_img(g , col=5).astype("int")
     
-    g = concat_img(g).astype("int")
+    plt.figure(figsize=(8,12)) 
     plt.imshow(g)
     plt.axis("off")
-    path = os.path.join( sys.argv[1], "fig2_3.png" )
+    path = os.path.join( sys.argv[1] , "bonus_1.png" )
     plt.savefig(path)
 #     plt.show()
-    
-    
+
 print_generate_img()
-    
+
+
+tmp_attr = np.zeros([5,num_class])
+tmp_attr = np.zeros([5 , num_class])
+tmp_attr[:,0]+=1
+tmp_attr[:,6]+=1
+tmp_g = sess.run( g_img , feed_dict={z_input:test_z , clf_tag:tmp_attr} )
+g = inverse_processing(tmp_g)
+g = concat_img(g,col=5).astype("int")
+
+plt.figure(figsize=(8,4)) 
+plt.imshow(g)
+plt.axis("off")
+path = os.path.join( sys.argv[1] , "bonus_2.png" )
+plt.savefig(path)
+
+
